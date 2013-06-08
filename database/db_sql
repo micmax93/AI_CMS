@@ -1,0 +1,277 @@
+--
+-- PostgreSQL database dump
+--
+
+-- Dumped from database version 9.1.9
+-- Dumped by pg_dump version 9.1.9
+-- Started on 2013-06-08 12:13:29 CEST
+
+SET statement_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SET check_function_bodies = false;
+SET client_min_messages = warning;
+
+--
+-- TOC entry 1918 (class 1262 OID 16384)
+-- Name: cms; Type: DATABASE; Schema: -; Owner: cms
+--
+
+CREATE DATABASE cms WITH TEMPLATE = template0 ENCODING = 'UTF8' LC_COLLATE = 'pl_PL.UTF-8' LC_CTYPE = 'pl_PL.UTF-8';
+
+
+ALTER DATABASE cms OWNER TO cms;
+
+\connect cms
+
+SET statement_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SET check_function_bodies = false;
+SET client_min_messages = warning;
+
+--
+-- TOC entry 166 (class 3079 OID 11679)
+-- Name: plpgsql; Type: EXTENSION; Schema: -; Owner: 
+--
+
+CREATE EXTENSION IF NOT EXISTS plpgsql WITH SCHEMA pg_catalog;
+
+
+--
+-- TOC entry 1921 (class 0 OID 0)
+-- Dependencies: 166
+-- Name: EXTENSION plpgsql; Type: COMMENT; Schema: -; Owner: 
+--
+
+COMMENT ON EXTENSION plpgsql IS 'PL/pgSQL procedural language';
+
+
+SET search_path = public, pg_catalog;
+
+--
+-- TOC entry 178 (class 1255 OID 16387)
+-- Dependencies: 6 501
+-- Name: xor(boolean, boolean); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION xor(arg1 boolean, arg2 boolean) RETURNS boolean
+    LANGUAGE plpgsql
+    AS $$BEGIN
+RETURN ( arg1 and not arg2) or ( not arg1 and arg2);
+END$$;
+
+
+ALTER FUNCTION public.xor(arg1 boolean, arg2 boolean) OWNER TO postgres;
+
+--
+-- TOC entry 161 (class 1259 OID 16416)
+-- Dependencies: 6
+-- Name: roles_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE roles_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.roles_id_seq OWNER TO postgres;
+
+SET default_tablespace = '';
+
+SET default_with_oids = false;
+
+--
+-- TOC entry 162 (class 1259 OID 16418)
+-- Dependencies: 1899 6
+-- Name: roles; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE roles (
+    id integer DEFAULT nextval('roles_id_seq'::regclass) NOT NULL,
+    name character varying(255),
+    description character varying(1000)
+);
+
+
+ALTER TABLE public.roles OWNER TO postgres;
+
+--
+-- TOC entry 163 (class 1259 OID 16425)
+-- Dependencies: 6
+-- Name: roles_users; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE roles_users (
+    user_id integer NOT NULL,
+    role_id integer NOT NULL
+);
+
+
+ALTER TABLE public.roles_users OWNER TO postgres;
+
+--
+-- TOC entry 164 (class 1259 OID 16441)
+-- Dependencies: 6
+-- Name: users; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE users (
+    id integer NOT NULL,
+    email character varying(255) NOT NULL,
+    username character varying(255) NOT NULL,
+    password character varying(255),
+    logins integer,
+    last_login integer,
+    full_name character varying(255)
+);
+
+
+ALTER TABLE public.users OWNER TO postgres;
+
+--
+-- TOC entry 165 (class 1259 OID 16447)
+-- Dependencies: 164 6
+-- Name: users_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE users_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.users_id_seq OWNER TO postgres;
+
+--
+-- TOC entry 1922 (class 0 OID 0)
+-- Dependencies: 165
+-- Name: users_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE users_id_seq OWNED BY users.id;
+
+
+--
+-- TOC entry 1900 (class 2604 OID 16550)
+-- Dependencies: 165 164
+-- Name: id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY users ALTER COLUMN id SET DEFAULT nextval('users_id_seq'::regclass);
+
+
+--
+-- TOC entry 1910 (class 0 OID 16418)
+-- Dependencies: 162 1914
+-- Data for Name: roles; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+INSERT INTO roles (id, name, description) VALUES (1, 'login', 'Podstawowa rola umożliwiająca logowanie');
+
+
+--
+-- TOC entry 1923 (class 0 OID 0)
+-- Dependencies: 161
+-- Name: roles_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('roles_id_seq', 3, true);
+
+
+--
+-- TOC entry 1911 (class 0 OID 16425)
+-- Dependencies: 163 1914
+-- Data for Name: roles_users; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+INSERT INTO roles_users (user_id, role_id) VALUES (7, 1);
+INSERT INTO roles_users (user_id, role_id) VALUES (8, 1);
+INSERT INTO roles_users (user_id, role_id) VALUES (9, 1);
+
+
+--
+-- TOC entry 1912 (class 0 OID 16441)
+-- Dependencies: 164 1914
+-- Data for Name: users; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+INSERT INTO users (id, email, username, password, logins, last_login, full_name) VALUES (1, 'test_user', 'user', NULL, NULL, NULL, NULL);
+INSERT INTO users (id, email, username, password, logins, last_login, full_name) VALUES (2, 'nxt_user', 'paswd', NULL, NULL, NULL, NULL);
+INSERT INTO users (id, email, username, password, logins, last_login, full_name) VALUES (9, 'test@user.pl', 'test', '6db5e888bf97568ce6ae62b08d47d6a6411363b39265270c6c701eb3a7e25217', NULL, NULL, 'Janusz Jan');
+INSERT INTO users (id, email, username, password, logins, last_login, full_name) VALUES (8, 'user@user.pl', 'user', '890d1ca8fcd713f2ebbcdaa090a7820cc0a00bbaf1e2ab4cebec935934207afa', NULL, 1368365784, 'Jan Kowalski');
+INSERT INTO users (id, email, username, password, logins, last_login, full_name) VALUES (7, 'admin@admin.pl', 'admin', '586d47435ff7be82b8f4b0847ac23e79492a10e77103768ae626d8ad22c664c6', NULL, 1370685050, 'Administrator');
+
+
+--
+-- TOC entry 1924 (class 0 OID 0)
+-- Dependencies: 165
+-- Name: users_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('users_id_seq', 9, true);
+
+
+--
+-- TOC entry 1902 (class 2606 OID 16474)
+-- Dependencies: 162 162 1915
+-- Name: role_pk; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY roles
+    ADD CONSTRAINT role_pk PRIMARY KEY (id);
+
+
+--
+-- TOC entry 1904 (class 2606 OID 16476)
+-- Dependencies: 163 163 163 1915
+-- Name: roles_users_pk; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY roles_users
+    ADD CONSTRAINT roles_users_pk PRIMARY KEY (user_id, role_id);
+
+
+--
+-- TOC entry 1906 (class 2606 OID 16484)
+-- Dependencies: 164 164 1915
+-- Name: users_name_key; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY users
+    ADD CONSTRAINT users_name_key UNIQUE (email);
+
+
+--
+-- TOC entry 1908 (class 2606 OID 16486)
+-- Dependencies: 164 164 1915
+-- Name: users_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY users
+    ADD CONSTRAINT users_pkey PRIMARY KEY (id);
+
+
+--
+-- TOC entry 1920 (class 0 OID 0)
+-- Dependencies: 6
+-- Name: public; Type: ACL; Schema: -; Owner: cms
+--
+
+REVOKE ALL ON SCHEMA public FROM PUBLIC;
+REVOKE ALL ON SCHEMA public FROM cms;
+GRANT ALL ON SCHEMA public TO cms;
+GRANT ALL ON SCHEMA public TO PUBLIC;
+
+
+-- Completed on 2013-06-08 12:13:29 CEST
+
+--
+-- PostgreSQL database dump complete
+--
+

@@ -1,0 +1,114 @@
+<html>
+    <head>
+        <title>WebSocket TEST</title>
+
+        <style>
+            html,body{font:normal 0.9em arial,helvetica;}
+            #log {width:440px; height:200px; border:1px solid #7F9DB9; overflow:auto;}
+            #msg {width:330px;}
+        </style>
+
+        <script>
+
+            String.prototype.repeat = function(num)
+            {
+                return new Array(num + 1).join(this);
+            }
+
+            var socket;
+
+            function createSocket(host) {
+
+                if (window.WebSocket)
+                    return new WebSocket(host);
+                else if (window.MozWebSocket)
+                    return new MozWebSocket(host);
+
+            }
+
+            function init() {
+                if(socket!=null)
+                {
+                    socket.close();
+                    socket = null;
+                }
+                var host = "wss://" + window.location.host + ":12345/echo";
+                try {
+                    socket = createSocket(host);
+                    log('WebSocket - status ' + socket.readyState);
+                    socket.onopen = function(msg) {
+                        log("Welcome - status " + this.readyState);
+                    };
+                    socket.onmessage = function(msg) {
+                        log("Received (" + msg.data.length + " bytes): " + msg.data);
+                    };
+                    socket.onclose = function(msg) {
+                        log("Disconnected - status " + this.readyState);
+                    };
+                }
+                catch (ex) {
+                    log(ex);
+                }
+            }
+
+            function send(msg) {
+                try {
+                    socket.send(msg);
+                    log('Sent (' + msg.length + " bytes): " + msg);
+                } catch (ex) {
+                    log(ex);
+                }
+            }
+
+            function sendMsg(cmd,type,id)
+            {
+                var str='{"cmd":"'+cmd+'","type":"'+type+'","id":'+id+'}';
+                send(str);
+            }
+
+            function quit() {
+                log("Goodbye!");
+                socket.close();
+                socket = null;
+            }
+            function register()
+            {
+                sendMsg('register','user','0');
+            }
+            function request()
+            {
+                var type = document.getElementById('type').value;
+                var id = document.getElementById('id').value;
+                sendMsg('request',type,id);
+            }
+            function ignore()
+            {
+                var type = document.getElementById('type').value;
+                var id = document.getElementById('id').value;
+                sendMsg('ignore',type,id);
+            }
+
+            // Utilities
+            function $(id) {
+                return document.getElementById(id);
+            }
+            function log(msg) {
+                $("log").innerHTML += "<br>" + msg;
+            }
+            //
+        </script>
+
+    </head>
+    <body>
+        <h3>User site</h3>
+        <button onclick="init()">connect</button>
+        <button onclick="register()">register</button>
+        <button onclick="quit()">quit</button>
+        <div id="log"></div>
+        <br>
+        <input id="type" type="textbox" value="tag"/>
+        <input id="id" type="textbox" value="3"/>
+        <button onclick="request()">request</button>
+        <button onclick="ignore()">ignore</button>
+    </body>
+</html>

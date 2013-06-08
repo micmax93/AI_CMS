@@ -1,0 +1,16 @@
+body {
+    background: #086CA2;
+    color: white;
+}
+h1 {
+    color: white;
+}
+
+.viewList thead tr {
+    background: black;
+}
+.viewList tr {
+    background: #3C9DD0;
+    padding: 3px;
+    cursor: pointer;
+}
