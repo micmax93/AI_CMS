@@ -1,62 +1,181 @@
 #!/php -q
 <?php
 
-class Manager
+class UserList
 {
     protected $user_list=array();
-    protected $resource_list=array();
-    protected $live_channels=array();
+    protected $online_list=array();
+    protected $proxy_list=array();
 
-    function new_user($uid,$uws)
+    protected $proxy_delay=20;
+    protected $removal_delay=20;
+
+    public function register($name,$hash)
     {
-        $this->user_list[$uid]['ws']=$uws;
-        $this->user_list[$uid]['req']=array();
+        $this->refresh();
+        $this->user_list[$name]=$hash;
+    }
+
+    function isValid($name,$hash=null)
+    {
+        if(isset($this->user_list[$name]))
+        {
+            if(($hash==null) or ($hash==$this->user_list[$name]))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public function login($name,$hash)
+    {
+        $this->refresh();
+        if($this->isValid($name,$hash))
+        {
+            $this->online_list[$name]=true;
+            return true;
+        }
+        return false;
+    }
+
+    public function logout($name)
+    {
+        $this->refresh();
+        if($this->isValid($name))
+        {
+            $this->online_list[$name]=time();
+            return true;
+        }
+        return false;
+    }
+
+    public function update($name,$hash)
+    {
+        $this->refresh();
+        if($this->isValid($name,$hash))
+        {
+            if(isset($this->online_list[$name]))
+            {
+                unset($this->online_list[$name]);
+            }
+            $this->proxy_list[$name]=time();
+            return true;
+        }
+        return false;
+    }
+
+    public function refresh()
+    {
+        $time=time();
+        foreach($this->online_list as $name => $val)
+        {
+            if($val!=true)
+            {
+                if($time-$val>$this->removal_delay)
+                {
+                    unset($this->online_list[$name]);
+                }
+            }
+        }
+        foreach($this->proxy_list as $name => $val)
+        {
+            if($time-$val>$this->proxy_delay+$this->removal_delay)
+            {
+                unset($this->proxy_list[$name]);
+            }
+        }
+    }
+
+    public function getList()
+    {
+        $time=time();
+        $this->refresh();
+        $active=array();
+        $delayed=array();
+        foreach($this->online_list as $name => $val)
+        {
+            if($val==true)
+            {
+                $active[$name]='inf';
+            }
+            else
+            {
+                $delayed[$name]=$this->removal_delay-($time-$val);
+            }
+        }
+        foreach($this->proxy_list as $name => $val)
+        {
+            $lag = $time-$val;
+            $rem = $this->proxy_delay+$this->removal_delay-$lag;
+            if($lag<$this->proxy_delay)
+            {
+                $active[$name]=$rem;
+            }
+            else
+            {
+                $delayed[$name]=$rem;
+            }
+        }
+        $list['active']=$active;
+        $list['delayed']=$delayed;
+        return $list;
+    }
+
+    public function getActiveUsers()
+    {
+        $this->refresh();
+        $list=array();
+        foreach($this->online_list as $name => $val)
+        {
+            if($val==true)
+            {
+                array_push($list,$name);
+            }
+        }
+        return $list;
+    }
+}
+
+class ConnectionManager
+{
+    protected $conn_list=array();
+
+    function getUname($cid)
+    {
+        return $this->conn_list[$cid]['name'];
+    }
+
+    public function new_connection($uid,$uws)
+    {
+        $this->conn_list[$uid]['ws']=$uws;
+        $this->conn_list[$uid]['name']=null;
         $this->say("New user id=$uid");
     }
-    public function request_resource($user,$type,$id)
+    public function close_connection($cid)
     {
-        $this->user_list[$user][$type][$id]=true;
-        $this->resource_list[$type][$id][$user]=true;
-        $this->say("User id=$user request resource $type($id)");
+        unset($this->conn_list[$cid]);
+        $this->say("Removing user id=$cid");
     }
-    public function leave_resource($user,$type,$id)
-    {
-        unset($this->user_list[$user][$type][$id]);
-        unset($this->resource_list[$type][$id][$user]);
-        $this->say("User id=$user leaves resource $type($id)");
-    }
-    public function remove_user($uid)
-    {
-        foreach($this->user_list[$uid] as $type => $res)
-        {
-            foreach($res as $rid => $val)
-            {
-                unset($this->resource_list[$type][$rid][$uid]);
-            }
-        }
-        unset($this->user_list[$uid]);
-        $this->close_live($uid);
-        $this->say("Removing user id=$uid");
-    }
-    public function user_exists($user)
-    {
-        return isset($this->user_list[$user]);
-    }
-    public function send_update($type,$id,$data,$admin=null,$hash=null)
-    {
-        $n=0;
-        if(isset($this->resource_list[$type][$id]))
-        {
-            $msg=new WebSocketMessage();
-            $msg->setData($data);
 
-            foreach($this->resource_list[$type][$id] as $uid => $val)
+    function sendData($cid,$data)
+    {
+        $msg=new WebSocketMessage();
+        $msg->setData(json_encode($data));
+        $this->conn_list[$cid]['ws']->sendMessage($msg);
+    }
+
+    function bcastData($data,$root=null)
+    {
+        $msg=new WebSocketMessage();
+        $msg->setData(json_encode($data));
+        foreach($this->conn_list as $val)
+        {
+            if(($val['name']!=null)&&($val['name']!=$root))
             {
-                $this->user_list[$uid]['ws']->sendMessage($msg);
-                $n++;
+                $val['ws']->sendMessage($msg);
             }
         }
-        $this->say("Resource $type($id) update notify send to $n users");
     }
 
     protected function say($msg) {
@@ -64,139 +183,81 @@ class Manager
     }
 }
 
-class LiveManager extends Manager
+class LoginManager extends ConnectionManager
 {
-    public function open_live($id,$chanel,$hash)
-    {
-        if($hash!=crypt("user=" . $chanel,"live_view"))
-        {
-            $this->say("User id=$id - incorrect hash");
-            return;
-        }
-        foreach($this->live_channels as $chl)
-        {
-            if($chl==$chanel) {return;}
-        }
-        $this->live_channels[$id]=$chanel;
-        $this->resource_list['live'][$chanel]=array();
-        $this->say("User id=$id opened chanel=$chanel");
-        $this->send_update('list',0,json_encode(['cmd'=>'update','type'=>'list','id'=>0]));
-    }
-    public function close_live($id)
-    {
-        if(!isset($this->live_channels[$id])) {return;}
+    protected $user_list;
 
-        $chanel=$this->live_channels[$id];
-        $msg['cmd']='update';
-        $msg['type']='live';
-        $msg['id']=$chanel;
-        $msg['error']='Chanel disconnected.';
-        $this->update_live($id,json_encode($msg));
-
-        unset($this->live_channels[$id]);
-        unset($this->resource_list['live'][$chanel]);
-
-        $this->say("Chanel=$chanel closed");
-        $this->send_update('list',0,json_encode(['cmd'=>'update','type'=>'list','id'=>0]));
-    }
-    public function request_live($uid,$chanel)
+    public function __construct()
     {
-        if(isset($this->resource_list['live'][$chanel]))
-        {
-            if(isset($this->user_list[$uid]['live']))
-            {
-                foreach($this->user_list[$uid]['live'] as $rid => $val)
-                {
-                    $this->leave_resource($uid,'live',$rid);
-                }
-            }
-            $this->request_resource($uid,'live',$chanel);
-        }
-        else
-        {
-            $data['cmd']='update';
-            $data['type']='live';
-            $data['id']=$chanel;
-            $data['error']='Chanel offline.';
-            $msg=new WebSocketMessage();
-            $msg->setData(json_encode($data));
-            $this->user_list[$uid]['ws']->sendMessage($msg);
-        }
+        $this->user_list=new UserList();
     }
-    public function leave_live($uid,$chanel)
-    {
-        $this->leave_resource($uid,'live',$chanel);
-    }
-    public function update_live($id,$data)
-    {
-        if(!isset($this->live_channels[$id])) {return;}
 
-        $chanel=$this->live_channels[$id];
-        $n=0;
-        if(isset($this->resource_list['live'][$chanel]))
-        {
-            $msg=new WebSocketMessage();
-            $msg->setData($data);
-
-            $n=0;
-            $q=0;
-            foreach($this->resource_list['live'][$chanel] as $uid => $val)
-            {
-                if($val==true)
-                {
-                    $this->resource_list['live'][$chanel][$uid]=false;
-                    $this->user_list[$uid]['ws']->sendMessage($msg);
-                    $n++;
-                }
-                else
-                {
-                    $this->resource_list['live'][$chanel][$uid]=$msg;
-                    $q++;
-                }
-            }
-        }
-        $this->say("Resource live($chanel) update notify send to $n users, $q messages added to queue");
-    }
-    public function list_live($uid)
+    function sendList($cid)
     {
-        $ls=array();
-        foreach($this->live_channels as $chl)
-        {
-            array_push($ls,$chl);
-        }
         $data['cmd']='list';
-        $data['type']='live';
-        $data['id']=count($ls);
-        $data['data']=$ls;
-
-        $msg=new WebSocketMessage();
-        $msg->setData(json_encode($data));
-        $this->user_list[$uid]['ws']->sendMessage($msg);
-        $this->say("Live chanel list send to user=$uid");
+        $data['args']=$this->user_list->getList();
+        $this->sendData($cid,$data);
     }
-    public function update_ack_live($uid,$chanel)
-    {
-        if(!isset($this->resource_list['live'][$chanel][$uid])) {return;}
-        $str="Recieved ack from user $uid";
 
-        $val=$this->resource_list['live'][$chanel][$uid];
-        if($val==false)
+    function bcastUpdate($user,$action)
+    {
+        $data['cmd']='update';
+        $data['args']['user']=$user;
+        $data['args']['action']=$action;
+        $this->bcastData($data,$user);
+    }
+
+    public function close_connection($cid)
+    {
+        $this->logout($cid);
+        parent::close_connection($cid);
+    }
+
+    protected function register($name,$hash)
+    {
+        $this->user_list->register($name,$hash);
+        $this->say("Register user $name");
+    }
+
+    public function login($sender, $name, $hash)
+    {
+        if($this->user_list->login($name,$hash))
         {
-            $this->resource_list['live'][$chanel][$uid]=true;
+            $this->conn_list[$sender]['name']=$name;
+            $this->sendList($sender);
+            $this->bcastUpdate($name,'login');
+            $this->say("Login user $name");
         }
-        else if($val!=true)
+    }
+
+    public function update($sender, $name, $hash)
+    {
+        if($this->user_list->update($name,$hash))
         {
-            $this->resource_list['live'][$chanel][$uid]=false;
-            $this->user_list[$uid]['ws']->sendMessage($val);
-            $str+=", sending waiting messages";
+            $this->sendList($sender);
+            $this->bcastUpdate($name,'update');
+            $this->say("Update user $name");
         }
-        $this->say($str);
+    }
+
+    public function logout($cid)
+    {
+        if(($user=$this->getUname($cid))!=null)
+        {
+            $this->user_list->logout($user);
+            $this->bcastUpdate($user,'logout');
+        }
     }
 }
 
 
-class SecureManager extends LiveManager
+class SecureLoginManager extends LoginManager
 {
+    public function __construct()
+    {
+        parent::__construct();
+    }
+
     protected function rand_string($len)
     {
         $str='';
@@ -214,159 +275,84 @@ class SecureManager extends LiveManager
             $ch=substr($str,$i,1);
             $str2= $str2 . $ch . chr(ord($ch)+((strlen($str)%($i+2))%5)-2);
         }
-        $hash=crypt($str2,strrev($str));
-        return $hash;
+        //$hash = crypt($str2, 'ai_projekt_na_100_procent');
+        return 'ai_projekt_na_100_procent';
     }
 
-    protected $admin_list;
-    public function new_admin($uid,$uws)
+    public function get_verify($uid)
     {
-        $this->admin_list[$uid]['ws']=$uws;
-        $str=$this->rand_string(16);
-        $this->admin_list[$uid]['code']=$str;
-        $this->admin_list[$uid]['hash']=$this->encode_string($str);
-        $this->say("New admin id=$uid");
+        $str=$this->rand_string(10);
+        $this->conn_list[$uid]['auth']=$this->encode_string($str);
+        $this->sendData($uid,$str);
+
     }
-    public function send_verify($uid)
+
+    public function register_user($sender,$auth,$user,$hash)
     {
-        $str=$this->admin_list[$uid]['code'];
-        $msg=new WebSocketMessage();
-        $msg->create($str);
-        $msg->setData($str);
-        $this->admin_list[$uid]['ws']->sendMessage($msg);
-        $this->say("Verification code send to user id= $uid");
-    }
-    public function is_admin($uid)
-    {
-        return isset($this->admin_list[$uid]);
-    }
-    public function user_exists($user)
-    {
-        return (parent::user_exists($user) or $this->is_admin($user));
-    }
-    public function remove_admin($uid)
-    {
-        unset($this->admin_list[$uid]);
-        $this->say("Removing admin id=$uid");
-    }
-    public function remove_user($uid)
-    {
-        if(!$this->user_exists($uid)) {return;}
-        if($this->is_admin($uid))
+        if(isset($this->conn_list[$sender]['auth']))
         {
-            $this->remove_admin($uid);
-        }
-        else
-        {
-            parent::remove_user($uid);
-        }
-    }
-    public function send_update($type,$id,$data,$admin=null,$hash=null)
-    {
-        if($this->admin_list[$admin]['hash']==$hash)
-        {
-            parent::send_update($type,$id,$data);
+            if($this->conn_list[$sender]['auth']==$auth)
+            {
+                $this->register($user,$hash);
+            }
+            else
+            {
+                $this->say("Invalid hash :) ".$this->conn_list[$sender]['auth']);
+            }
+
         }
     }
 }
 
 class CommunicationInterpreter
 {
-    protected $chanel_list;
     protected $manager;
 
     public function __construct()
     {
-        $this->manager=new SecureManager();
+        $this->manager=new SecureLoginManager();
     }
-    public function newChanel($chanelId,$socket)
+
+    public function newChanel($chanelId, $ws)
     {
-        $this->chanel_list[$chanelId]=$socket;
+        $this->manager->new_connection($chanelId,$ws);
     }
+
+    public function chanelDisconnected($chanelId)
+    {
+        $this->manager->close_connection($chanelId);
+    }
+
     function isValidStruct($data)
     {
-        return (isset($data->cmd) and isset($data->type) and isset($data->id));
+        return (isset($data->cmd) and isset($data->args));
     }
+
     public function messageReceived($sender,$msg)
     {
         $data=json_decode($msg);
         if(!$this->isValidStruct($data)) {return;}
 
-        if(!$this->manager->user_exists($sender))
+        if($data->cmd=='register')
         {
-            if($data->cmd=='register')
-            {
-                if($data->type=='admin')
-                {
-                    $this->manager->new_admin($sender,$this->chanel_list[$sender]);
-                    $this->manager->send_verify($sender);
-                }
-                if($data->type=='user')
-                {
-                    $this->manager->new_user($sender,$this->chanel_list[$sender]);
-                }
-            }
+            $this->manager->register_user($sender,$data->args->auth,$data->args->user,$data->args->hash);
         }
-        else
+        else if($data->cmd=='get_verify')
         {
-            if($data->type=='live')
-            {
-                if($data->cmd=='open')
-                {
-                    $this->manager->open_live($sender,$data->id,$data->hash);
-                }
-                else if($data->cmd=='close')
-                {
-                    $this->manager->close_live($sender);
-                }
-                else if($data->cmd=='request')
-                {
-                    $this->manager->request_live($sender,$data->id);
-                }
-                else if($data->cmd=='ignore')
-                {
-                    $this->manager->leave_live($sender,$data->id);
-                }
-                else if($data->cmd=='update')
-                {
-                    $this->manager->update_live($sender,$msg);
-                }
-                else if($data->cmd=='ls')
-                {
-                    $this->manager->list_live($sender);
-                }
-                else if($data->cmd=='ack')
-                {
-                    $this->manager->update_ack_live($sender,$data->id);
-                }
-            }
-            else if($this->manager->is_admin($sender))
-            {
-                if($data->cmd=='update')
-                {
-                    if(isset($data->hash))
-                    {
-                        $this->manager->send_update($data->type,$data->id,$msg,$sender,$data->hash);
-                    }
-                }
-            }
-            else
-            {
-                if($data->cmd=='request')
-                {
-                    $this->manager->request_resource($sender,$data->type,$data->id);
-                }
-                else if($data->cmd=='ignore')
-                {
-                    $this->manager->leave_resource($sender,$data->type,$data->id);
-                }
-            }
+            $this->manager->get_verify($sender);
         }
-    }
-    public function chanelDisconnected($chanelId)
-    {
-        unset($this->chanel_list[$chanelId]);
-        $this->manager->remove_user($chanelId);
+        else if($data->cmd=='login')
+        {
+            $this->manager->login($sender,$data->args->user,$data->args->hash);
+        }
+        else if($data->cmd=='logout')
+        {
+            $this->manager->logout($sender);
+        }
+        else if($data->cmd=='update')
+        {
+            $this->manager->update($sender,$data->args->user,$data->args->hash);
+        }
     }
 }
 

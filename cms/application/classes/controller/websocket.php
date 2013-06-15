@@ -11,86 +11,101 @@ class SimpleWebSocketClient
     public $socket;
     public $isOpen;
 
-    public function __construct($addr="ws://127.0.0.1:12345/echo/")
+    public function __construct($addr = "ws://127.0.0.1:12345/echo/")
     {
         $this->socket = new WebSocket($addr);
-        $this->isOpen=true;
+        $this->isOpen = true;
 
         try {
             $this->socket->open();
-        }
-        catch(Exception $exception)
-        {
+        } catch (Exception $exception) {
             //echo $exception->getMessage();
-            $this->isOpen=false;
+            $this->isOpen = false;
         }
     }
 
     public function __destruct()
     {
-        if(!$this->isOpen) {return;}
+        if (!$this->isOpen) {
+            return;
+        }
         $this->socket->close();
     }
 
     public function sendMsg($msg)
     {
-        if(!$this->isOpen) {return;}
+        if (!$this->isOpen) {
+            return;
+        }
         $ws_msg = WebSocketMessage::create($msg);
         $this->socket->sendMessage($ws_msg);
     }
 
     public function recvMsg()
     {
-        if(!$this->isOpen) {return;}
+        if (!$this->isOpen) {
+            return;
+        }
         $msg = $this->socket->readMessage();
         return $msg->getData();
     }
 }
 
-class WebSocketBroadcastAdmin
+class WebSocketController
 {
     public $ws;
-    public $adminCode,$adminHash;
+    public $adminCode='', $adminHash='';
+
     function encodeString($str)
     {
-        $str2='';
-        for($i=0;$i<strlen($str);$i++)
-        {
-            $ch=substr($str,$i,1);
-            $str2= $str2 . $ch . chr(ord($ch)+((strlen($str)%($i+2))%5)-2);
+        $str2 = '';
+        for ($i = 0; $i < strlen($str); $i++) {
+            $ch = substr($str, $i, 1);
+            $str2 = $str2 . $ch . chr(ord($ch) + ((strlen($str) % ($i + 2)) % 5) - 2);
         }
-        $hash=crypt($str2,strrev($str));
-        return $hash;
+        //$hash = crypt($str2, 'ai_projekt_na_100_procent');
+        return 'ai_projekt_na_100_procent';
     }
-    function makeJsonMsg($cmd,$type,$id,$hash=null)
+
+    function makeJsonMsg($cmd, $args=array())
     {
-        $msg['cmd']=$cmd;
-        $msg['type']=$type;
-        $msg['id']=$id;
-        if($hash!=null)
-        {
-            $msg['hash']=$hash;
-        }
+        $msg['cmd'] = $cmd;
+        $msg['args'] = $args;
+        $msg['args']['auth'] = $this->adminHash;
         return json_encode($msg);
     }
+
     public function __construct()
     {
-        $this->ws=new SimpleWebSocketClient();
-        if(!$this->ws->isOpen)
-        {
-            throw new Exception('Unable to open connection!');
+        $this->ws = new SimpleWebSocketClient();
+        if (!$this->ws->isOpen) {
+            throw new Exception('WebSocket: Unable to open connection!');
         }
-        $this->ws->sendMsg($this->makeJsonMsg('register','admin',0));
-        $this->adminCode=$this->ws->recvMsg();
-        $this->adminHash=$this->encodeString($this->adminCode);
     }
-    public function update($type,$id)
+
+    function get_verification()
     {
-        $msg=$this->makeJsonMsg('update',$type,$id,$this->adminHash);
+        $this->ws->sendMsg($this->makeJsonMsg('get_verify'));
+        $this->adminCode = $this->ws->recvMsg();
+        $this->adminHash = $this->encodeString($this->adminCode);
+    }
+
+    public function register($uname, $hash)
+    {
+        $this->get_verification();
+        $data['user']=$uname;
+        $data['hash']=$hash;
+        $msg = $this->makeJsonMsg('register', $data);
         $this->ws->sendMsg($msg);
     }
-    public static function single_update($type,$id)
+
+    public function update($uname, $hash)
     {
-        (new WebSocketBroadcastAdmin())->update($type,$id);
+        $data['user']=$uname;
+        $data['hash']=$hash;
+        $msg = $this->makeJsonMsg('update', $data);
+        $this->ws->sendMsg($msg);
     }
+
+
 }
