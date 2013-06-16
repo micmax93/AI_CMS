@@ -139,11 +139,11 @@ Route::set('glowna', '(<controller>(/<action>(/<id>)))')
 //        'action' => 'index',
 //    ));
 //
-//Route::set('User', '(user(/<action>(/<id>)))')
-//    ->defaults(array(
-//        'controller' => 'user',
-//        'action' => 'index',
-//    ));
+Route::set('User', '(user(/<action>(/<id>)))')
+    ->defaults(array(
+        'controller' => 'user',
+        'action' => 'manage',
+    ));
 //
 //
 //Route::set('Tag', '(tag(/<action>(/<id>)))')

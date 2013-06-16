@@ -5,22 +5,10 @@ require("websocket.php");
 
 class Controller_Cms extends CmsController
 {
-    //register(uname,hash,type)
-    //login(uname,hash)
-    //logout()/disconnect()
-    //update(uid)
-    //list
 
     public function action_index()
     {
         $widok = View::factory('index');
-        $widok->set('title', 'CMS');
-
-        $this->response->body($widok->render());
-    }
-    public function action_no_ws()
-    {
-        $widok = View::factory('no_ws');
         $widok->set('title', 'CMS');
 
         $this->response->body($widok->render());

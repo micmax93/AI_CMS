@@ -4,7 +4,7 @@
 
 -- Dumped from database version 9.1.9
 -- Dumped by pg_dump version 9.1.9
--- Started on 2013-06-08 12:13:29 CEST
+-- Started on 2013-06-16 18:36:59 CEST
 
 SET statement_timeout = 0;
 SET client_encoding = 'UTF8';
@@ -201,11 +201,9 @@ INSERT INTO roles_users (user_id, role_id) VALUES (9, 1);
 -- Data for Name: users; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-INSERT INTO users (id, email, username, password, logins, last_login, full_name) VALUES (1, 'test_user', 'user', NULL, NULL, NULL, NULL);
-INSERT INTO users (id, email, username, password, logins, last_login, full_name) VALUES (2, 'nxt_user', 'paswd', NULL, NULL, NULL, NULL);
-INSERT INTO users (id, email, username, password, logins, last_login, full_name) VALUES (9, 'test@user.pl', 'test', '6db5e888bf97568ce6ae62b08d47d6a6411363b39265270c6c701eb3a7e25217', NULL, NULL, 'Janusz Jan');
 INSERT INTO users (id, email, username, password, logins, last_login, full_name) VALUES (8, 'user@user.pl', 'user', '890d1ca8fcd713f2ebbcdaa090a7820cc0a00bbaf1e2ab4cebec935934207afa', NULL, 1368365784, 'Jan Kowalski');
-INSERT INTO users (id, email, username, password, logins, last_login, full_name) VALUES (7, 'admin@admin.pl', 'admin', '586d47435ff7be82b8f4b0847ac23e79492a10e77103768ae626d8ad22c664c6', NULL, 1370685050, 'Administrator');
+INSERT INTO users (id, email, username, password, logins, last_login, full_name) VALUES (7, 'admin@admin.pl', 'admin', '586d47435ff7be82b8f4b0847ac23e79492a10e77103768ae626d8ad22c664c6', NULL, 1371397823, 'Administrator');
+INSERT INTO users (id, email, username, password, logins, last_login, full_name) VALUES (9, 'test@user.pl', 'test', '6db5e888bf97568ce6ae62b08d47d6a6411363b39265270c6c701eb3a7e25217', NULL, 1371399332, 'Janusz Jan');
 
 
 --
@@ -269,7 +267,7 @@ GRANT ALL ON SCHEMA public TO cms;
 GRANT ALL ON SCHEMA public TO PUBLIC;
 
 
--- Completed on 2013-06-08 12:13:29 CEST
+-- Completed on 2013-06-16 18:36:59 CEST
 
 --
 -- PostgreSQL database dump complete

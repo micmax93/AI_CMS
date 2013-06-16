@@ -1,4 +1,3 @@
-#!/php -q
 <?php
 require_once("ws_lib/websocket.server.php");
 require("manager.php");
@@ -48,6 +47,6 @@ class BroadcastServer implements IWebSocketServerObserver {
 
 }
 
-//{"cmd":"request","type":"tag","id":3}
+
 $server = new BroadcastServer();
 $server->run();

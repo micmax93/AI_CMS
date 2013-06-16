@@ -1,31 +1,49 @@
 /**
  * Created with JetBrains PhpStorm.
- * User: phisikus
- * Date: 15.03.13
- * Time: 22:03
- * To change this template use File | Settings | File Templates.
+ * User: micmax93
  */
 
 function setup() {
-    setupWebSocket();
+    register();
+    //setupWebSocket();
 }
 
-function no_ws_setup() {
-    jQuery.post("get_code", function (data) {
-        myName=data['uname'];
-        myHash=data['hash'];
-    });
+
+var webSocket = null;
+function setupWebSocket() {
+    webSocket = new WebSocket("ws://" + window.location.host + ":12345/echo");
+    webSocket.onopen = function (evt) {
+        login();
+    };
+    webSocket.onclose = function (evt) {
+        //onClose(evt)
+    };
+    webSocket.onmessage = function (evt) {
+        onMessage(evt);
+    };
+    webSocket.onerror = function (evt) {
+        //onError(evt);
+    };
 }
 
-var int_update=null;
-function start_update() {
-    if(int_update==null) {
-        int_update=window.setInterval(update,5000);
+function closeWebSocket() {
+    if (webSocket != null) {
+        webSocket.close();
+        webSocket = null;
     }
 }
-function stop_update() {
-    if(int_update!=null) {
+
+
+var int_update = null;
+function setupAsyncUpdate() {
+    update();
+    if (int_update == null) {
+        int_update = window.setInterval(update, 5000);
+    }
+}
+function stopAsyncUpdate() {
+    if (int_update != null) {
         window.clearTimeout(int_update);
-        int_update=null;
+        int_update = null;
     }
 }

@@ -5,12 +5,10 @@ echo '
 <html>
 <head>
  <title>Manage Users...</title>
- <link href="http://fonts.googleapis.com/css?family=Share+Tech+Mono" rel="stylesheet" type="text/css">
- <link rel="stylesheet" type="text/css" href="' . URL::base() . 'application/views/css/edituser.css">
  <script src="' . URL::base() . 'application/views/js/jquery-1.9.1.js"></script>
  <script src="' . URL::base() . 'application/views/js/jquery-ui.js"></script>
  <script>
- var baseUrl = "' . URL::base() . '";
+    var baseUrl = "' . URL::base() . '";
  </script>
  <script src="' . URL::base() . 'application/views/js/users.js"></script>
 </head>

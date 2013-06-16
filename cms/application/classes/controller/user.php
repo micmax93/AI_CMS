@@ -12,7 +12,7 @@ class Controller_User extends CmsController
 {
     public function action_index()
     {
-
+        $this->action_manage();
     }
 
     public function action_login()
