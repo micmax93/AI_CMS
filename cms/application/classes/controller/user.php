@@ -18,7 +18,7 @@ class Controller_User extends CmsController
     public function action_login()
     {
         $widok = View::factory('login');
-        $widok->set('title', 'DiagShare');
+        $widok->set('title', 'CMS');
         $this->response->body($widok->render());
     }
 
