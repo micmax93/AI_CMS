@@ -166,56 +166,105 @@ function sendDataMsg(cmd, type, id, data) {
     webSocket.send(str);
 }
 
-function register() {
-    sendMsg('register', 'user', '0');
-}
-function request(type, id) {
-    sendMsg('request', type, id);
-}
-function ignore(type, id) {
-    sendMsg('ignore', type, id);
-}
+var myName;
+var myHash;
 
-function downloadPosts() {
-    var args = {};
-    args['id'] = chatId;
-    args['last'] = chatLast;
-    jQuery.post("index.php/chat/" + chatType, args, function (data) {
-        if ((chatType != data['type']) || (chatId != data['id'])) {
-            return;
-        }
-        document.getElementById('chatRoomId').innerHTML = '#' + data['title'];
-        for (i = 0; i < data['posts'].length; i++) {
-            if (data['posts'][i]['id'] <= chatLast) {
-                continue;
-            }
-            $('#chatList').prepend("<tr><td>" + data['posts'][i]['owner'] + ": " + data['posts'][i]['content'] + "</td></tr>");
-            chatLast = data['posts'][i]['id'];
-        }
+function register(addr) {
+    jQuery.post("index.php/cms/get_code", function (data) {
+        myName=data['uname'];
+        myHash=data['hash'];
+        login();
     });
-
+}
+function login() {
+    var str = '{"cmd":"login","args":{"user":"' + myName + '","hash":"' + myHash + '"}}';
+    webSocket.send(str);
 }
 
-function setChat(type, id) {
-    if ((chatType == type) && (chatId == id)) {
-        return;
+var active={};
+var delayed={};
+var lastUpdate=new Date().getTime() / 1000;
+
+function updateTimeouts() {
+    var currTime=new Date().getTime() / 1000;
+    var diff=currTime-lastUpdate;
+    for (u in active)
+    {
+        if(active[u]['actv']!='inf')
+        {
+            active[u]['actv']-=diff;
+            active[u]['remv']-=diff;
+        }
     }
-    ignore(chatType, chatId);
-    chatType = type;
-    chatId = id;
-    chatLast = 0;
-    $('#chatList tr').remove();
-    downloadPosts();
-    request(chatType, chatId);
+    for (u in delayed)
+    {
+        delayed[u]['actv']-=diff;
+        delayed[u]['remv']-=diff;
+    }
+    lastUpdate=currTime;
 }
 
+function refreshList() {
+    updateTimeouts();
+    for (u in active)
+    {
+        if((active[u]['actv']!='inf')&&(active[u]['actv']<=0))
+        {
+            delayed[u]=active[u];
+            delete active[u];
+        }
+    }
+    for (u in delayed)
+    {
+        if(delayed[u]['remv']<=0)
+        {
+            delete delayed[u];
+        }
+    }
+}
+
+function userUpdate(user,action,times)
+{
+    if(user in active)
+        {delete active[user];}
+    if(user in delayed)
+        {delete delayed[user];}
+    refreshList();
+    if((action=='login')||(action=='update'))
+        {active[user]=times;}
+    if(action=='logout')
+        {delayed[user]=times;}
+}
+function repaintList() {
+    $('#activeList tr').remove();
+    for (u in active)
+    {
+        $('#activeList').append("<tr><td>" + u + " " + active[u]['actv'] + "</td></tr>");
+            //.prepend("<tr><td>" + u + "</td></tr>");
+    }
+    $('#delayedList tr').remove();
+    for (u in delayed)
+    {
+        $('#delayedList').append("<tr><td>" + u + " " + delayed[u]['remv'] + "</td></tr>");
+    }
+}
+
+function showMsg(str) {
+    $('#chatList').prepend("<tr><td>" + str + "</td></tr>");
+}
+
+function setupRefresh(timeout) {
+    window.setInterval(function() {
+        refreshList();
+        repaintList();
+    },timeout);
+}
 
 function setupWebSocket() {
 
     webSocket = new WebSocket("ws://" + window.location.host + ":12345/echo");
     webSocket.onopen = function (evt) {
         register();
-        request('room', 0);
     };
     webSocket.onclose = function (evt) {
         onClose(evt)
@@ -225,8 +274,8 @@ function setupWebSocket() {
     };
     webSocket.onerror = function (evt) {
         onError(evt);
-
     };
+
 }
 
 
@@ -236,74 +285,30 @@ function onClose(evt) {
 function onMessage(evt) {
     //$('#chatList').append("<tr><td>" + evt.data + "</td></tr>");
     data = jQuery.parseJSON(evt.data);
-    if ((data['type'] == chatType) && (data['id'] == chatId)) {
-        downloadPosts();
+    if (data['cmd'] == 'list') {
+        active = data['args']['active'];
+        delayed = data['args']['delayed'];
+        repaintList();
+        setupRefresh(1000);
     }
-    if ((data['type'] == 'room') && (data['id'] == 0)) {
-        loadRooms();
+    else if (data['cmd'] == 'update') {
+        userUpdate(data['args']['user'],data['args']['action'],data['args']['time']);
+        repaintList();
     }
-    if ((data['type'] == 'list') && (data['id'] == 0)) {
-        sessionsListReceived(data['data'], 0);
-    }
-    if (data['type'] == 'live') {
-        if (typeof data['error'] != 'undefined') {
-            alert("Błąd: " + data['error']);
-            unlockBoard();
-        }
-        else if (data['cmd'] == 'update') {
-            var board = JSON.stringify(data['data']);
-            setBoardState(board);
-        }
-        else if (data['cmd'] == 'list') {
-            //alert(sessionWindow);
-            var lst = sessionWindow.document.getElementById('sessionList');
-            $(lst).empty();
-            $(lst).append('<thead><tr><th>username</th></tr></thead>');
-            for (var i = 0; i < data['data'].length; i++)
-                $(lst).append('<tr><td onclick="window.opener.sendSessionRequest(' + parseInt(data['data'][i]) + ');">' + sessionWindow.userList[parseInt(data['data'][i])] + " </td></tr > ");
-
-        }
-    }
-    //TODO odczytanie rodzaju zasobu
-}
-function onError(evt) {
-    alert('Błąd czatu: ' + evt.data);
 }
 
 
-var liveChanel = null;
-var liveListener = null;
-
-function startLiveSession() {
-    jQuery.get("index.php/chat/live", function (data) {
-        liveChanel = data['chanel'];
-        sendHashMsg('open', 'live', data['chanel'], data['hash']);
-        alert("Uruchomiono współdzielenie sesji.");
+function update() {
+    var args={};
+    args['uname']=myName;
+    args['hash']=myHash;
+    jQuery.post("update",args, function (data) {
+        active = data['args']['active'];
+        delayed = data['args']['delayed'];
+        repaintList();
     });
 }
 
-function sendSessionUpdate() {
-    if (liveChanel != null) {
-        var board = JSON.stringify(getBoardState());
-        sendDataMsg('update', 'live', liveChanel, board);
-    }
-}
-
-function sendSessionRequest(id) {
-    request('live', id);
-    liveListener = id;
-    blockBoard();
-}
-
-function sendSesionAck() {
-    sendMsg('ack', 'live', liveListener);
-}
-
-function requestSessionList() {
-    sendMsg('ls', 'live', 0);
-}
-
-function stopLiveSession() {
-    sendMsg('close', 'live', liveChanel);
-    liveChanel = null;
+function onError(evt) {
+    alert('Błąd czatu: ' + evt.data);
 }

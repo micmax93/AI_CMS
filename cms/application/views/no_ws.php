@@ -29,7 +29,12 @@ echo '
  <script src="' . URL::base() . 'application/views/js/sessions.js"></script>
  <script src="' . URL::base() . 'application/views/js/setup.js"></script>
 </head>
-<body onload="setup()">
+<body onload="no_ws_setup()">
+    <button onclick="update()">single update</button>
+    <button onclick="start_update()">start update</button>
+    <button onclick="stop_update()">stop update</button>
+    <br>
+
     <h1>Lista użytkowników:</h1>
     <hr>
     <h2>Active users:</h2><br>

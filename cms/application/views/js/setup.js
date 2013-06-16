@@ -8,15 +8,24 @@
 
 function setup() {
     setupWebSocket();
-    loadRooms();
+}
 
-    // Otwieranie zarządzania userami
-    document.onkeydown = keydown;
-    function keydown(evt) {
-        if (!evt) evt = event;
-        if (evt.shiftKey && evt.altKey && evt.keyCode == 76) { // ctrl+alt+l
-            popupWindow("Manage users", "index.php/user/manage");
-        }
+function no_ws_setup() {
+    jQuery.post("get_code", function (data) {
+        myName=data['uname'];
+        myHash=data['hash'];
+    });
+}
+
+var int_update=null;
+function start_update() {
+    if(int_update==null) {
+        int_update=window.setInterval(update,5000);
     }
-
+}
+function stop_update() {
+    if(int_update!=null) {
+        window.clearTimeout(int_update);
+        int_update=null;
+    }
 }

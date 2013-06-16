@@ -33,7 +33,7 @@ class UserList
         $this->refresh();
         if($this->isValid($name,$hash))
         {
-            $this->online_list[$name]=true;
+            $this->online_list[$name]='inf';
             return true;
         }
         return false;
@@ -70,7 +70,7 @@ class UserList
         $time=time();
         foreach($this->online_list as $name => $val)
         {
-            if($val!=true)
+            if($val!='inf')
             {
                 if($time-$val>$this->removal_delay)
                 {
@@ -87,6 +87,40 @@ class UserList
         }
     }
 
+    public function getTime($name)
+    {
+        $time=time();
+        $this->refresh();
+        if(isset($this->online_list[$name]))
+        {
+            if($this->online_list[$name]=='inf')
+            {
+                return array('actv'=>'inf','remv'=>'inf');
+            }
+            else
+            {
+                $lag= $this->removal_delay-($time-$this->online_list[$name]);
+                return array('actv'=>0,'remv'=>$lag);
+            }
+        }
+        else if(isset($this->proxy_list[$name]))
+        {
+            $lag = $time-$this->proxy_list[$name];
+            $actv = $this->proxy_delay-$lag;
+            $remv = $this->proxy_delay+$this->removal_delay-$lag;
+
+            if($actv>0)
+            {
+                return array('actv'=>$actv,'remv'=>$remv);
+            }
+            else
+            {
+                return array('actv'=>0,'remv'=>$remv);
+            }
+        }
+        else return array('actv'=>0,'remv'=>0);
+    }
+
     public function getList()
     {
         $time=time();
@@ -95,26 +129,29 @@ class UserList
         $delayed=array();
         foreach($this->online_list as $name => $val)
         {
-            if($val==true)
+            if($val=='inf')
             {
-                $active[$name]='inf';
+                $active[$name]=array('actv'=>'inf','remv'=>'inf');
             }
             else
             {
-                $delayed[$name]=$this->removal_delay-($time-$val);
+                $lag=$this->removal_delay-($time-$val);
+                $delayed[$name]=array('actv'=>0,'remv'=>$lag);
             }
         }
         foreach($this->proxy_list as $name => $val)
         {
             $lag = $time-$val;
-            $rem = $this->proxy_delay+$this->removal_delay-$lag;
-            if($lag<$this->proxy_delay)
+            $actv = $this->proxy_delay-$lag;
+            $remv = $this->proxy_delay+$this->removal_delay-$lag;
+
+            if($actv>0)
             {
-                $active[$name]=$rem;
+                $active[$name]=array('actv'=>$actv,'remv'=>$remv);
             }
             else
             {
-                $delayed[$name]=$rem;
+                $delayed[$name]=array('actv'=>0,'remv'=>$remv);
             }
         }
         $list['active']=$active;
@@ -128,7 +165,7 @@ class UserList
         $list=array();
         foreach($this->online_list as $name => $val)
         {
-            if($val==true)
+            if($val=='inf')
             {
                 array_push($list,$name);
             }
@@ -204,6 +241,7 @@ class LoginManager extends ConnectionManager
         $data['cmd']='update';
         $data['args']['user']=$user;
         $data['args']['action']=$action;
+        $data['args']['time']=$this->user_list->getTime($user);
         $this->bcastData($data,$user);
     }
 
@@ -246,6 +284,7 @@ class LoginManager extends ConnectionManager
         {
             $this->user_list->logout($user);
             $this->bcastUpdate($user,'logout');
+            $this->say($user.' logout');
         }
     }
 }

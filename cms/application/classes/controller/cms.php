@@ -18,6 +18,13 @@ class Controller_Cms extends CmsController
 
         $this->response->body($widok->render());
     }
+    public function action_no_ws()
+    {
+        $widok = View::factory('no_ws');
+        $widok->set('title', 'CMS');
+
+        $this->response->body($widok->render());
+    }
 
     protected function rand_hash($len=10)
     {
@@ -40,6 +47,18 @@ class Controller_Cms extends CmsController
 
         $this->response->headers('Content-Type', 'application/json');
         $this->response->body(json_encode($tab));
+    }
+
+    public function action_update()
+    {
+        $user=$_POST['uname'];
+        $hash=$_POST['hash'];
+
+        $ws = new WebSocketController();
+        $list=$ws->get_update($user,$hash);
+
+        $this->response->headers('Content-Type', 'application/json');
+        $this->response->body($list);
     }
 
 }

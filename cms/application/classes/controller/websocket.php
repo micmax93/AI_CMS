@@ -99,12 +99,13 @@ class WebSocketController
         $this->ws->sendMsg($msg);
     }
 
-    public function update($uname, $hash)
+    public function get_update($uname, $hash)
     {
         $data['user']=$uname;
         $data['hash']=$hash;
         $msg = $this->makeJsonMsg('update', $data);
         $this->ws->sendMsg($msg);
+        return $this->ws->recvMsg();
     }
 
 
