@@ -58,13 +58,14 @@ class WebSocketController
 
     function encodeString($str)
     {
-        $str2 = '';
-        for ($i = 0; $i < strlen($str); $i++) {
-            $ch = substr($str, $i, 1);
-            $str2 = $str2 . $ch . chr(ord($ch) + ((strlen($str) % ($i + 2)) % 5) - 2);
+        $str2='';
+        for($i=0;$i<strlen($str);$i++)
+        {
+            $ch=substr($str,$i,1);
+            $str2= $str2 . $ch . chr(ord($ch)+((strlen($str)%($i+2))%5)-2);
         }
-        //$hash = crypt($str2, 'ai_projekt_na_100_procent');
-        return 'ai_projekt_na_100_procent';
+        $hash=crypt($str2,strrev($str));
+        return $hash;
     }
 
     function makeJsonMsg($cmd, $args=array())
@@ -86,7 +87,8 @@ class WebSocketController
     function get_verification()
     {
         $this->ws->sendMsg($this->makeJsonMsg('get_verify'));
-        $this->adminCode = $this->ws->recvMsg();
+        $msg = json_decode($this->ws->recvMsg());
+        $this->adminCode = $msg->code;
         $this->adminHash = $this->encodeString($this->adminCode);
     }
 

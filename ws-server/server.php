@@ -1,6 +1,10 @@
 <?php
 require_once("ws_lib/websocket.server.php");
-require("manager.php");
+
+foreach (glob("manager/*.php") as $filename)
+{
+    require $filename;
+}
 
 
 class BroadcastServer implements IWebSocketServerObserver {
