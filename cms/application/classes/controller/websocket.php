@@ -55,6 +55,7 @@ class WebSocketController
 {
     public $ws;
     public $adminCode='', $adminHash='';
+    public $group;
 
     function encodeString($str)
     {
@@ -70,18 +71,20 @@ class WebSocketController
 
     function makeJsonMsg($cmd, $args=array())
     {
+        $msg['group'] = $this->group;
         $msg['cmd'] = $cmd;
         $msg['args'] = $args;
         $msg['args']['auth'] = $this->adminHash;
         return json_encode($msg);
     }
 
-    public function __construct()
+    public function __construct($group)
     {
         $this->ws = new SimpleWebSocketClient();
         if (!$this->ws->isOpen) {
             throw new Exception('WebSocket: Unable to open connection!');
         }
+        $this->group=$group;
     }
 
     function get_verification()

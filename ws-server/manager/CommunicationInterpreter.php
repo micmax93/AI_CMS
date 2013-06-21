@@ -5,26 +5,37 @@
  */
 class CommunicationInterpreter
 {
-    protected $manager;
+    protected $manager = array();
+    protected $chanels = array();
 
-    public function __construct()
+    function check($chanel,$group)
     {
-        $this->manager = new SecureLoginManager();
+        if (!isset($this->manager[$group])) {
+            $this->manager[$group] = new SecureLoginManager();
+        }
+        if(!$this->manager[$group]->exists($chanel))
+        {
+            $this->manager[$group]->newConnection($chanel,  $this->chanels[$chanel]);
+        }
     }
 
     public function newChanel($chanelId, $ws)
     {
-        $this->manager->newConnection($chanelId, $ws);
+        $this->chanels[$chanelId]=$ws;
     }
 
     public function chanelDisconnected($chanelId)
     {
-        $this->manager->closeConnection($chanelId);
+        unset($this->chanels[$chanelId]);
+        foreach($this->manager as $m)
+        {
+            $m->closeConnection($chanelId);
+        }
     }
 
     function isValidStruct($data)
     {
-        return (isset($data->cmd) and isset($data->args));
+        return (isset($data->cmd) and isset($data->args) and isset($data->group));
     }
 
     public function messageReceived($sender, $msg)
@@ -34,16 +45,19 @@ class CommunicationInterpreter
             return;
         }
 
+        $gid = $data->group;
+        $this->check($sender, $gid);
+
         if ($data->cmd == 'register') {
-            $this->manager->registerUser($sender, $data->args->auth, $data->args->user, $data->args->hash);
+            $this->manager[$gid]->registerUser($sender, $data->args->auth, $data->args->user, $data->args->hash);
         } else if ($data->cmd == 'get_verify') {
-            $this->manager->getVerify($sender);
+            $this->manager[$gid]->getVerify($sender);
         } else if ($data->cmd == 'login') {
-            $this->manager->login($sender, $data->args->user, $data->args->hash);
+            $this->manager[$gid]->login($sender, $data->args->user, $data->args->hash);
         } else if ($data->cmd == 'logout') {
-            $this->manager->logout($sender);
+            $this->manager[$gid]->logout($sender);
         } else if ($data->cmd == 'update') {
-            $this->manager->update($sender, $data->args->user, $data->args->hash);
+            $this->manager[$gid]->update($sender, $data->args->user, $data->args->hash);
         }
     }
 }

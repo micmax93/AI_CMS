@@ -33,6 +33,9 @@ class UserList
         $this->refresh();
         if ($this->isValid($name, $hash)) {
             $this->online_list[$name] = 'inf';
+            if (isset($this->proxy_list[$name])) {
+                unset($this->proxy_list[$name]);
+            }
             return true;
         }
         return false;

@@ -30,7 +30,8 @@ class Controller_Cms extends CmsController
         $tab['uname'] = Auth::instance()->get_user()->username;
         $tab['hash'] = $this->rand_hash();
 
-        $ws = new WebSocketController();
+        $group=$_POST['group'];
+        $ws = new WebSocketController($group);
         $ws->register($tab['uname'],$tab['hash']);
 
         $this->response->headers('Content-Type', 'application/json');
@@ -41,8 +42,9 @@ class Controller_Cms extends CmsController
     {
         $user=$_POST['uname'];
         $hash=$_POST['hash'];
+        $group=$_POST['group'];
 
-        $ws = new WebSocketController();
+        $ws = new WebSocketController($group);
         $list=$ws->get_update($user,$hash);
 
         $this->response->headers('Content-Type', 'application/json');

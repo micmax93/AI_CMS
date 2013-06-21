@@ -3,9 +3,6 @@
  * User: micmax93
  */
 
-var myName;
-var myHash;
-
 var active = {};
 var delayed = {};
 var lastUpdate = new Date().getTime() / 1000;

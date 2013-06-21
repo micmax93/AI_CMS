@@ -23,11 +23,7 @@ echo '
  <script src="' . URL::base() . 'application/views/js/setup.js"></script>
 </head>
 <body onload="setup()">
-    <button onclick="setupWebSocket()">start websocket</button>
-    <button onclick="closeWebSocket()">close websocket</button>
-    <br>
-    <button onclick="setupAsyncUpdate()">start AJAX update</button>
-    <button onclick="stopAsyncUpdate()">stop AJAX update</button>
+    <input type="button" value="   " onclick="switchMode()" id="modeSwitch"/>
     <br>
     <h1>Lista użytkowników:</h1>
     <hr>

@@ -9,7 +9,11 @@ class ConnectionManager
 
     function getUname($cid)
     {
-        return $this->conn_list[$cid]['name'];
+        if(isset($this->conn_list[$cid]['name']))
+        {
+            return $this->conn_list[$cid]['name'];
+        }
+        return null;
     }
 
     public function newConnection($uid, $uws)
@@ -21,8 +25,16 @@ class ConnectionManager
 
     public function closeConnection($cid)
     {
-        unset($this->conn_list[$cid]);
-        $this->say("Removing user id=$cid");
+        if(isset($this->conn_list[$cid]))
+        {
+            unset($this->conn_list[$cid]);
+            $this->say("Removing user id=$cid");
+        }
+    }
+
+    public function exists($cid)
+    {
+        return isset($this->conn_list[$cid]);
     }
 
     function sendData($cid, $data)

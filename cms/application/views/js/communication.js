@@ -3,16 +3,13 @@
  * User: micmax93
  */
 
-function register(addr) {
-    jQuery.post("index.php/cms/get_code", function (data) {
-        myName = data['uname'];
-        myHash = data['hash'];
-    });
+function sendMsg(cmd,args) {
+    var data={'cmd':cmd,'group':myGroup,'args':args};
+    webSocket.send(JSON.stringify(data));
 }
 
 function login() {
-    var str = '{"cmd":"login","args":{"user":"' + myName + '","hash":"' + myHash + '"}}';
-    webSocket.send(str);
+    sendMsg('login',{'user':myName,'hash':myHash});
 }
 
 
@@ -20,6 +17,7 @@ function update() {
     var args = {};
     args['uname'] = myName;
     args['hash'] = myHash;
+    args['group'] = myGroup;
     jQuery.post("index.php/cms/update", args, function (data) {
         active = data['args']['active'];
         delayed = data['args']['delayed'];
