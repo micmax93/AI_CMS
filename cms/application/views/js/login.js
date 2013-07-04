@@ -19,3 +19,21 @@ function authorizeUser() {
         success: userAuthorized
     });
 }
+
+function registerUser() {
+    var user = document.getElementById('newUserInput').value;
+    var pass = document.getElementById('newPasswordInput').value;
+    var data = {};
+    data["username"] = user;
+    data["full_name"] = user;
+    data["email"] = user + "@" + "ChangeMe.com";
+    data["password"] = pass;
+    jQuery.post(baseUrl + "index.php/user/set/0", data, function (v) {
+        $('#userInput').val(user);
+        $('#newUserInput').val('');
+        $('#passwordInput').val(pass);
+        $('#newPasswordInput').val('');
+        authorizeUser();
+    });
+
+}

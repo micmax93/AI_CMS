@@ -18,17 +18,9 @@ echo '
  <script src="' . URL::base() . 'application/views/js/jquery-1.9.1.js"></script>
  <script src="' . URL::base() . 'application/views/js/jquery-ui.js"></script>
  <script src="' . URL::base() . 'application/views/js/jquery.blockUI.js"></script>
- <script src="' . URL::base() . 'application/views/js/communication.js"></script>
- <script src="' . URL::base() . 'application/views/js/list.js"></script>
- <script src="' . URL::base() . 'application/views/js/setup.js"></script>
 </head>
-<body onload="setup()">
-    <input type="button" value="   " onclick="switchMode()" id="modeSwitch"/>
-    <br>
-    <h1>Lista użytkowników:</h1>
-    <hr>
-    <table id="userList">
-    </table>
+<body">
+
 </body>
 
 </html> ';

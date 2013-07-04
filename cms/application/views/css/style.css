@@ -1,7 +1,13 @@
-.activeUser {
-    color: #009900;
+.table_login {
+    background-color: green;
+    width: 25%;
 }
 
-.delayedUser {
-    color: #555555;
+.table_register {
+    background-color: red;
+    width: 25%;
+}
+
+.table_seperator {
+    width: 50%;
 }
