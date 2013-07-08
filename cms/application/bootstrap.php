@@ -144,6 +144,18 @@ Route::set('User', '(user(/<action>(/<id>)))')
         'controller' => 'user',
         'action' => 'manage',
     ));
+
+Route::set('Contract', '(contract(/<action>(/<id>)))')
+    ->defaults(array(
+        'controller' => 'contract',
+        'action' => 'index',
+    ));
+
+Route::set('Month', '(month(/<action>(/<id>)))')
+    ->defaults(array(
+        'controller' => 'month',
+        'action' => 'index',
+    ));
 //
 //
 //Route::set('Tag', '(tag(/<action>(/<id>)))')

@@ -2,9 +2,9 @@
 -- PostgreSQL database dump
 --
 
--- Dumped from database version 9.1.9
--- Dumped by pg_dump version 9.1.9
--- Started on 2013-06-16 18:36:59 CEST
+-- Dumped from database version 9.2.4
+-- Dumped by pg_dump version 9.2.4
+-- Started on 2013-07-08 22:02:04
 
 SET statement_timeout = 0;
 SET client_encoding = 'UTF8';
@@ -13,25 +13,7 @@ SET check_function_bodies = false;
 SET client_min_messages = warning;
 
 --
--- TOC entry 1918 (class 1262 OID 16384)
--- Name: cms; Type: DATABASE; Schema: -; Owner: cms
---
-
-CREATE DATABASE cms WITH TEMPLATE = template0 ENCODING = 'UTF8' LC_COLLATE = 'pl_PL.UTF-8' LC_CTYPE = 'pl_PL.UTF-8';
-
-
-ALTER DATABASE cms OWNER TO cms;
-
-\connect cms
-
-SET statement_timeout = 0;
-SET client_encoding = 'UTF8';
-SET standard_conforming_strings = on;
-SET check_function_bodies = false;
-SET client_min_messages = warning;
-
---
--- TOC entry 166 (class 3079 OID 11679)
+-- TOC entry 184 (class 3079 OID 11727)
 -- Name: plpgsql; Type: EXTENSION; Schema: -; Owner: 
 --
 
@@ -39,8 +21,8 @@ CREATE EXTENSION IF NOT EXISTS plpgsql WITH SCHEMA pg_catalog;
 
 
 --
--- TOC entry 1921 (class 0 OID 0)
--- Dependencies: 166
+-- TOC entry 2017 (class 0 OID 0)
+-- Dependencies: 184
 -- Name: EXTENSION plpgsql; Type: COMMENT; Schema: -; Owner: 
 --
 
@@ -50,23 +32,205 @@ COMMENT ON EXTENSION plpgsql IS 'PL/pgSQL procedural language';
 SET search_path = public, pg_catalog;
 
 --
--- TOC entry 178 (class 1255 OID 16387)
--- Dependencies: 6 501
--- Name: xor(boolean, boolean); Type: FUNCTION; Schema: public; Owner: postgres
+-- TOC entry 197 (class 1255 OID 24978)
+-- Name: init_hoursheet(); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
-CREATE FUNCTION xor(arg1 boolean, arg2 boolean) RETURNS boolean
+CREATE FUNCTION init_hoursheet() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$BEGIN
-RETURN ( arg1 and not arg2) or ( not arg1 and arg2);
-END$$;
+    AS $$
+DECLARE
+	start DATE;
+	curr DATE;
+	stop DATE;
+	h_sum INTEGER;
+	h_day INTEGER;
+	y INTEGER;
+	m INTEGER;
+	cid INTEGER;
+BEGIN
+	cid := NEW.id;
+	start := NEW.start_date;
+	stop := NEW.end_date;
+	h_day := NEW.hours_per_day;
+
+	DELETE FROM hours_per_month WHERE contract_id=cid;
+
+	curr := start;
+	WHILE curr <= stop LOOP
+		y := EXTRACT(YEAR FROM curr);
+		m := EXTRACT(MONTH FROM curr);
+		h_sum := 0;
+		WHILE m = EXTRACT(MONTH FROM curr) LOOP
+			IF EXTRACT(ISODOW FROM curr) <= 5 THEN
+				h_sum := h_sum + h_day;
+			END IF;
+			curr := curr +  + integer '1';
+		END LOOP;
+		INSERT INTO hours_per_month(contract_id,year,month,hours)
+			VALUES (cid,y,m,h_sum);
+	END LOOP;
+	RETURN NULL;
+END;
+$$;
 
 
-ALTER FUNCTION public.xor(arg1 boolean, arg2 boolean) OWNER TO postgres;
+ALTER FUNCTION public.init_hoursheet() OWNER TO postgres;
+
+SET default_tablespace = '';
+
+SET default_with_oids = false;
 
 --
--- TOC entry 161 (class 1259 OID 16416)
--- Dependencies: 6
+-- TOC entry 176 (class 1259 OID 24960)
+-- Name: contract; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE contract (
+    id integer NOT NULL,
+    user_id integer,
+    start_date date,
+    end_date date,
+    hours_per_day integer,
+    name character varying(50)
+);
+
+
+ALTER TABLE public.contract OWNER TO postgres;
+
+--
+-- TOC entry 175 (class 1259 OID 24958)
+-- Name: contract_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE contract_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.contract_id_seq OWNER TO postgres;
+
+--
+-- TOC entry 2018 (class 0 OID 0)
+-- Dependencies: 175
+-- Name: contract_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE contract_id_seq OWNED BY contract.id;
+
+
+--
+-- TOC entry 178 (class 1259 OID 24993)
+-- Name: days_off; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE days_off (
+    contract_id integer NOT NULL,
+    type character varying(20),
+    date date NOT NULL,
+    descryption character varying(250) DEFAULT ''::character varying,
+    hour_factor double precision DEFAULT 0,
+    id integer NOT NULL,
+    CONSTRAINT type_check CHECK (((type)::text = ANY ((ARRAY['on leave'::character varying, 'medical leave'::character varying, 'day off'::character varying])::text[])))
+);
+
+
+ALTER TABLE public.days_off OWNER TO postgres;
+
+--
+-- TOC entry 173 (class 1259 OID 16766)
+-- Name: timesheet; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE timesheet (
+    start_hour integer,
+    end_hour integer,
+    contract_id integer NOT NULL,
+    description character varying(250) DEFAULT ''::character varying,
+    date date NOT NULL,
+    id integer NOT NULL
+);
+
+
+ALTER TABLE public.timesheet OWNER TO postgres;
+
+--
+-- TOC entry 179 (class 1259 OID 25015)
+-- Name: daily_summary; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW daily_summary AS
+    SELECT sheet.user_id, sheet.contract_id, sheet.duration, sheet.year, sheet.month, sheet.day, sheet.week, sheet.type, sheet.description FROM (SELECT (SELECT contract.user_id FROM contract WHERE (contract.id = timesheet.contract_id)) AS user_id, timesheet.contract_id, (timesheet.end_hour - timesheet.start_hour) AS duration, (date_part('year'::text, timesheet.date))::integer AS year, (date_part('month'::text, timesheet.date))::integer AS month, (date_part('day'::text, timesheet.date))::integer AS day, (date_part('week'::text, timesheet.date))::integer AS week, 'present'::character varying AS type, timesheet.description FROM timesheet UNION SELECT (SELECT contract.user_id FROM contract WHERE (contract.id = days_off.contract_id)) AS user_id, days_off.contract_id, ((days_off.hour_factor * ((SELECT contract.hours_per_day FROM contract WHERE (contract.id = days_off.contract_id)))::double precision))::integer AS duration, (date_part('year'::text, days_off.date))::integer AS year, (date_part('month'::text, days_off.date))::integer AS month, (date_part('day'::text, days_off.date))::integer AS day, (date_part('week'::text, days_off.date))::integer AS week, days_off.type, days_off.descryption AS description FROM days_off) sheet ORDER BY sheet.year, sheet.month, sheet.day;
+
+
+ALTER TABLE public.daily_summary OWNER TO postgres;
+
+--
+-- TOC entry 177 (class 1259 OID 24966)
+-- Name: hours_per_month; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE hours_per_month (
+    contract_id integer NOT NULL,
+    year integer NOT NULL,
+    month integer NOT NULL,
+    hours integer
+);
+
+
+ALTER TABLE public.hours_per_month OWNER TO postgres;
+
+--
+-- TOC entry 180 (class 1259 OID 25020)
+-- Name: month_summary; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW month_summary AS
+    SELECT hours_per_month.contract_id, (SELECT contract.user_id FROM contract WHERE (contract.id = hours_per_month.contract_id)) AS user_id, hours_per_month.year, hours_per_month.month, (COALESCE(m_sum.duration, (0)::bigint))::integer AS hours, hours_per_month.hours AS todo FROM (hours_per_month LEFT JOIN (SELECT daily_summary.user_id, daily_summary.year, daily_summary.month, sum(daily_summary.duration) AS duration, daily_summary.contract_id FROM daily_summary GROUP BY daily_summary.contract_id, daily_summary.user_id, daily_summary.year, daily_summary.month) m_sum USING (contract_id, year, month)) ORDER BY hours_per_month.year, hours_per_month.month;
+
+
+ALTER TABLE public.month_summary OWNER TO postgres;
+
+--
+-- TOC entry 181 (class 1259 OID 25025)
+-- Name: contract_summary; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW contract_summary AS
+    SELECT month_summary.contract_id, month_summary.user_id, sum(month_summary.hours) AS hours, sum(month_summary.todo) AS todo FROM month_summary GROUP BY month_summary.contract_id, month_summary.user_id;
+
+
+ALTER TABLE public.contract_summary OWNER TO postgres;
+
+--
+-- TOC entry 183 (class 1259 OID 25054)
+-- Name: days_off_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE days_off_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.days_off_id_seq OWNER TO postgres;
+
+--
+-- TOC entry 2019 (class 0 OID 0)
+-- Dependencies: 183
+-- Name: days_off_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE days_off_id_seq OWNED BY days_off.id;
+
+
+--
+-- TOC entry 168 (class 1259 OID 16737)
 -- Name: roles_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
@@ -80,13 +244,8 @@ CREATE SEQUENCE roles_id_seq
 
 ALTER TABLE public.roles_id_seq OWNER TO postgres;
 
-SET default_tablespace = '';
-
-SET default_with_oids = false;
-
 --
--- TOC entry 162 (class 1259 OID 16418)
--- Dependencies: 1899 6
+-- TOC entry 169 (class 1259 OID 16739)
 -- Name: roles; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
 --
 
@@ -100,8 +259,7 @@ CREATE TABLE roles (
 ALTER TABLE public.roles OWNER TO postgres;
 
 --
--- TOC entry 163 (class 1259 OID 16425)
--- Dependencies: 6
+-- TOC entry 170 (class 1259 OID 16746)
 -- Name: roles_users; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
 --
 
@@ -114,8 +272,31 @@ CREATE TABLE roles_users (
 ALTER TABLE public.roles_users OWNER TO postgres;
 
 --
--- TOC entry 164 (class 1259 OID 16441)
--- Dependencies: 6
+-- TOC entry 182 (class 1259 OID 25044)
+-- Name: timesheet_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE timesheet_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.timesheet_id_seq OWNER TO postgres;
+
+--
+-- TOC entry 2020 (class 0 OID 0)
+-- Dependencies: 182
+-- Name: timesheet_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE timesheet_id_seq OWNED BY timesheet.id;
+
+
+--
+-- TOC entry 171 (class 1259 OID 16749)
 -- Name: users; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
 --
 
@@ -133,8 +314,7 @@ CREATE TABLE users (
 ALTER TABLE public.users OWNER TO postgres;
 
 --
--- TOC entry 165 (class 1259 OID 16447)
--- Dependencies: 164 6
+-- TOC entry 172 (class 1259 OID 16755)
 -- Name: users_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
@@ -149,8 +329,8 @@ CREATE SEQUENCE users_id_seq
 ALTER TABLE public.users_id_seq OWNER TO postgres;
 
 --
--- TOC entry 1922 (class 0 OID 0)
--- Dependencies: 165
+-- TOC entry 2021 (class 0 OID 0)
+-- Dependencies: 172
 -- Name: users_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
@@ -158,8 +338,42 @@ ALTER SEQUENCE users_id_seq OWNED BY users.id;
 
 
 --
--- TOC entry 1900 (class 2604 OID 16550)
--- Dependencies: 165 164
+-- TOC entry 174 (class 1259 OID 16777)
+-- Name: week_summary; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW week_summary AS
+    SELECT daily_summary.user_id, daily_summary.year, daily_summary.week, sum(daily_summary.duration) AS duration, daily_summary.contract_id FROM daily_summary GROUP BY daily_summary.contract_id, daily_summary.user_id, daily_summary.year, daily_summary.week ORDER BY daily_summary.year, daily_summary.week;
+
+
+ALTER TABLE public.week_summary OWNER TO postgres;
+
+--
+-- TOC entry 1975 (class 2604 OID 24963)
+-- Name: id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY contract ALTER COLUMN id SET DEFAULT nextval('contract_id_seq'::regclass);
+
+
+--
+-- TOC entry 1978 (class 2604 OID 25056)
+-- Name: id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY days_off ALTER COLUMN id SET DEFAULT nextval('days_off_id_seq'::regclass);
+
+
+--
+-- TOC entry 1974 (class 2604 OID 25046)
+-- Name: id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY timesheet ALTER COLUMN id SET DEFAULT nextval('timesheet_id_seq'::regclass);
+
+
+--
+-- TOC entry 1972 (class 2604 OID 16757)
 -- Name: id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
@@ -167,8 +381,78 @@ ALTER TABLE ONLY users ALTER COLUMN id SET DEFAULT nextval('users_id_seq'::regcl
 
 
 --
--- TOC entry 1910 (class 0 OID 16418)
--- Dependencies: 162 1914
+-- TOC entry 2005 (class 0 OID 24960)
+-- Dependencies: 176
+-- Data for Name: contract; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+INSERT INTO contract (id, user_id, start_date, end_date, hours_per_day, name) VALUES (1, 7, '2013-07-01', '2013-09-30', 6, 'GSK');
+INSERT INTO contract (id, user_id, start_date, end_date, hours_per_day, name) VALUES (2, 7, '2013-07-23', '2013-09-16', 1, 'GSK2');
+INSERT INTO contract (id, user_id, start_date, end_date, hours_per_day, name) VALUES (3, 7, '2013-07-01', '2013-09-30', 6, 'Allegro');
+INSERT INTO contract (id, user_id, start_date, end_date, hours_per_day, name) VALUES (4, 7, '2013-10-01', '2014-09-30', 8, 'Arbeit');
+
+
+--
+-- TOC entry 2022 (class 0 OID 0)
+-- Dependencies: 175
+-- Name: contract_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('contract_id_seq', 4, true);
+
+
+--
+-- TOC entry 2007 (class 0 OID 24993)
+-- Dependencies: 178
+-- Data for Name: days_off; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+INSERT INTO days_off (contract_id, type, date, descryption, hour_factor, id) VALUES (1, 'on leave', '2013-07-02', 'urlop', 1, 1);
+INSERT INTO days_off (contract_id, type, date, descryption, hour_factor, id) VALUES (1, 'day off', '2013-07-15', 'święto', 0, 2);
+INSERT INTO days_off (contract_id, type, date, descryption, hour_factor, id) VALUES (1, 'day off', '2013-07-01', 'Jednak święto', 0, 6);
+
+
+--
+-- TOC entry 2023 (class 0 OID 0)
+-- Dependencies: 183
+-- Name: days_off_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('days_off_id_seq', 6, true);
+
+
+--
+-- TOC entry 2006 (class 0 OID 24966)
+-- Dependencies: 177
+-- Data for Name: hours_per_month; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+INSERT INTO hours_per_month (contract_id, year, month, hours) VALUES (1, 2013, 7, 138);
+INSERT INTO hours_per_month (contract_id, year, month, hours) VALUES (1, 2013, 8, 132);
+INSERT INTO hours_per_month (contract_id, year, month, hours) VALUES (1, 2013, 9, 126);
+INSERT INTO hours_per_month (contract_id, year, month, hours) VALUES (2, 2013, 7, 7);
+INSERT INTO hours_per_month (contract_id, year, month, hours) VALUES (2, 2013, 8, 22);
+INSERT INTO hours_per_month (contract_id, year, month, hours) VALUES (2, 2013, 9, 21);
+INSERT INTO hours_per_month (contract_id, year, month, hours) VALUES (3, 2013, 7, 138);
+INSERT INTO hours_per_month (contract_id, year, month, hours) VALUES (3, 2013, 8, 132);
+INSERT INTO hours_per_month (contract_id, year, month, hours) VALUES (3, 2013, 9, 126);
+INSERT INTO hours_per_month (contract_id, year, month, hours) VALUES (4, 2013, 10, 184);
+INSERT INTO hours_per_month (contract_id, year, month, hours) VALUES (4, 2013, 11, 168);
+INSERT INTO hours_per_month (contract_id, year, month, hours) VALUES (4, 2013, 12, 176);
+INSERT INTO hours_per_month (contract_id, year, month, hours) VALUES (4, 2014, 1, 184);
+INSERT INTO hours_per_month (contract_id, year, month, hours) VALUES (4, 2014, 2, 160);
+INSERT INTO hours_per_month (contract_id, year, month, hours) VALUES (4, 2014, 3, 168);
+INSERT INTO hours_per_month (contract_id, year, month, hours) VALUES (4, 2014, 4, 176);
+INSERT INTO hours_per_month (contract_id, year, month, hours) VALUES (4, 2014, 5, 176);
+INSERT INTO hours_per_month (contract_id, year, month, hours) VALUES (4, 2014, 6, 168);
+INSERT INTO hours_per_month (contract_id, year, month, hours) VALUES (4, 2014, 7, 184);
+INSERT INTO hours_per_month (contract_id, year, month, hours) VALUES (4, 2014, 8, 168);
+INSERT INTO hours_per_month (contract_id, year, month, hours) VALUES (4, 2014, 9, 176);
+
+
+--
+-- TOC entry 1999 (class 0 OID 16739)
+-- Dependencies: 169
 -- Data for Name: roles; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
@@ -176,8 +460,8 @@ INSERT INTO roles (id, name, description) VALUES (1, 'login', 'Podstawowa rola u
 
 
 --
--- TOC entry 1923 (class 0 OID 0)
--- Dependencies: 161
+-- TOC entry 2024 (class 0 OID 0)
+-- Dependencies: 168
 -- Name: roles_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
@@ -185,39 +469,97 @@ SELECT pg_catalog.setval('roles_id_seq', 3, true);
 
 
 --
--- TOC entry 1911 (class 0 OID 16425)
--- Dependencies: 163 1914
+-- TOC entry 2000 (class 0 OID 16746)
+-- Dependencies: 170
 -- Data for Name: roles_users; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 INSERT INTO roles_users (user_id, role_id) VALUES (7, 1);
 INSERT INTO roles_users (user_id, role_id) VALUES (8, 1);
 INSERT INTO roles_users (user_id, role_id) VALUES (9, 1);
+INSERT INTO roles_users (user_id, role_id) VALUES (10, 1);
+INSERT INTO roles_users (user_id, role_id) VALUES (11, 1);
+INSERT INTO roles_users (user_id, role_id) VALUES (12, 1);
+INSERT INTO roles_users (user_id, role_id) VALUES (13, 1);
+INSERT INTO roles_users (user_id, role_id) VALUES (14, 1);
 
 
 --
--- TOC entry 1912 (class 0 OID 16441)
--- Dependencies: 164 1914
+-- TOC entry 2003 (class 0 OID 16766)
+-- Dependencies: 173
+-- Data for Name: timesheet; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+INSERT INTO timesheet (start_hour, end_hour, contract_id, description, date, id) VALUES (8, 16, 1, 'szkolenie', '2013-07-04', 1);
+INSERT INTO timesheet (start_hour, end_hour, contract_id, description, date, id) VALUES (9, 16, 1, 'testowanie', '2013-08-01', 2);
+INSERT INTO timesheet (start_hour, end_hour, contract_id, description, date, id) VALUES (8, 16, 1, ' ', '2013-07-08', 3);
+INSERT INTO timesheet (start_hour, end_hour, contract_id, description, date, id) VALUES (7, 17, 1, '', '2013-09-02', 4);
+INSERT INTO timesheet (start_hour, end_hour, contract_id, description, date, id) VALUES (7, 17, 1, '', '2013-09-03', 5);
+INSERT INTO timesheet (start_hour, end_hour, contract_id, description, date, id) VALUES (7, 17, 1, '', '2013-09-04', 6);
+INSERT INTO timesheet (start_hour, end_hour, contract_id, description, date, id) VALUES (7, 17, 1, '', '2013-09-05', 7);
+INSERT INTO timesheet (start_hour, end_hour, contract_id, description, date, id) VALUES (7, 17, 1, '', '2013-09-06', 8);
+
+
+--
+-- TOC entry 2025 (class 0 OID 0)
+-- Dependencies: 182
+-- Name: timesheet_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('timesheet_id_seq', 10, true);
+
+
+--
+-- TOC entry 2001 (class 0 OID 16749)
+-- Dependencies: 171
 -- Data for Name: users; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-INSERT INTO users (id, email, username, password, logins, last_login, full_name) VALUES (8, 'user@user.pl', 'user', '890d1ca8fcd713f2ebbcdaa090a7820cc0a00bbaf1e2ab4cebec935934207afa', NULL, 1368365784, 'Jan Kowalski');
-INSERT INTO users (id, email, username, password, logins, last_login, full_name) VALUES (7, 'admin@admin.pl', 'admin', '586d47435ff7be82b8f4b0847ac23e79492a10e77103768ae626d8ad22c664c6', NULL, 1371397823, 'Administrator');
-INSERT INTO users (id, email, username, password, logins, last_login, full_name) VALUES (9, 'test@user.pl', 'test', '6db5e888bf97568ce6ae62b08d47d6a6411363b39265270c6c701eb3a7e25217', NULL, 1371399332, 'Janusz Jan');
+INSERT INTO users (id, email, username, password, logins, last_login, full_name) VALUES (8, 'user@user.pl', 'user', '890d1ca8fcd713f2ebbcdaa090a7820cc0a00bbaf1e2ab4cebec935934207afa', NULL, 1371848450, 'Jan Kowalski');
+INSERT INTO users (id, email, username, password, logins, last_login, full_name) VALUES (9, 'test@user.pl', 'test', '6db5e888bf97568ce6ae62b08d47d6a6411363b39265270c6c701eb3a7e25217', NULL, 1371853181, 'Janusz Jan');
+INSERT INTO users (id, email, username, password, logins, last_login, full_name) VALUES (10, 'pracownik@ChangeMe.com', 'pracownik', 'b90174d09c0956bc842ca37697352256b656fbeea0480786cff99ede7e2e4b21', NULL, 1372960419, 'pracownik');
+INSERT INTO users (id, email, username, password, logins, last_login, full_name) VALUES (14, 'gsk@ChangeMe.com', 'gsk', 'a7d73fc8dd73fa45d6a2bde0db5e99b8424046359a7a77eddd3ba8d4e48011b6', NULL, 1373103421, 'gsk');
+INSERT INTO users (id, email, username, password, logins, last_login, full_name) VALUES (7, 'admin@admin.pl', 'admin', '586d47435ff7be82b8f4b0847ac23e79492a10e77103768ae626d8ad22c664c6', NULL, 1373226904, 'Administrator');
 
 
 --
--- TOC entry 1924 (class 0 OID 0)
--- Dependencies: 165
+-- TOC entry 2026 (class 0 OID 0)
+-- Dependencies: 172
 -- Name: users_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('users_id_seq', 9, true);
+SELECT pg_catalog.setval('users_id_seq', 14, true);
 
 
 --
--- TOC entry 1902 (class 2606 OID 16474)
--- Dependencies: 162 162 1915
+-- TOC entry 1991 (class 2606 OID 24965)
+-- Name: contract_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY contract
+    ADD CONSTRAINT contract_pkey PRIMARY KEY (id);
+
+
+--
+-- TOC entry 1995 (class 2606 OID 25062)
+-- Name: day_off_pk; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY days_off
+    ADD CONSTRAINT day_off_pk PRIMARY KEY (id);
+
+
+--
+-- TOC entry 1993 (class 2606 OID 25005)
+-- Name: hours_per_month_pk; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY hours_per_month
+    ADD CONSTRAINT hours_per_month_pk PRIMARY KEY (contract_id, year, month);
+
+
+--
+-- TOC entry 1981 (class 2606 OID 16759)
 -- Name: role_pk; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
 --
 
@@ -226,8 +568,7 @@ ALTER TABLE ONLY roles
 
 
 --
--- TOC entry 1904 (class 2606 OID 16476)
--- Dependencies: 163 163 163 1915
+-- TOC entry 1983 (class 2606 OID 16761)
 -- Name: roles_users_pk; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
 --
 
@@ -236,8 +577,16 @@ ALTER TABLE ONLY roles_users
 
 
 --
--- TOC entry 1906 (class 2606 OID 16484)
--- Dependencies: 164 164 1915
+-- TOC entry 1989 (class 2606 OID 25052)
+-- Name: timesheet_pk; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY timesheet
+    ADD CONSTRAINT timesheet_pk PRIMARY KEY (id);
+
+
+--
+-- TOC entry 1985 (class 2606 OID 16763)
 -- Name: users_name_key; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
 --
 
@@ -246,8 +595,7 @@ ALTER TABLE ONLY users
 
 
 --
--- TOC entry 1908 (class 2606 OID 16486)
--- Dependencies: 164 164 1915
+-- TOC entry 1987 (class 2606 OID 16765)
 -- Name: users_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
 --
 
@@ -256,18 +604,36 @@ ALTER TABLE ONLY users
 
 
 --
--- TOC entry 1920 (class 0 OID 0)
+-- TOC entry 1997 (class 2620 OID 24979)
+-- Name: on_new_contract; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER on_new_contract AFTER INSERT OR UPDATE ON contract FOR EACH ROW EXECUTE PROCEDURE init_hoursheet();
+
+
+--
+-- TOC entry 1996 (class 2606 OID 24999)
+-- Name: hours_per_month_contract_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY hours_per_month
+    ADD CONSTRAINT hours_per_month_contract_id_fkey FOREIGN KEY (contract_id) REFERENCES contract(id);
+
+
+--
+-- TOC entry 2016 (class 0 OID 0)
 -- Dependencies: 6
--- Name: public; Type: ACL; Schema: -; Owner: cms
+-- Name: public; Type: ACL; Schema: -; Owner: postgres
 --
 
 REVOKE ALL ON SCHEMA public FROM PUBLIC;
-REVOKE ALL ON SCHEMA public FROM cms;
+REVOKE ALL ON SCHEMA public FROM postgres;
+GRANT ALL ON SCHEMA public TO postgres;
 GRANT ALL ON SCHEMA public TO cms;
 GRANT ALL ON SCHEMA public TO PUBLIC;
 
 
--- Completed on 2013-06-16 18:36:59 CEST
+-- Completed on 2013-07-08 22:02:04
 
 --
 -- PostgreSQL database dump complete

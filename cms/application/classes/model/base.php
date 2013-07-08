@@ -14,8 +14,4 @@ class Model_Base extends ORM
     {
         return ORM::factory($this->_table_name)->find_all();
     }
-    public function newQuery()
-    {
-        return ORM::factory($this->_table_name);
-    }
 }
